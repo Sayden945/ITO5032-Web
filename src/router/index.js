@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AccountView from '../views/AccountView.vue'
+import AboutView from '../views/AboutView.vue'
+import LoginView from '../views/LoginView.vue'
+import ResourcesView from '../views/ResourcesView.vue'
 import store from '../stores/store.js'
 
 const routes = [
@@ -9,8 +12,8 @@ const routes = [
     component: () => import('../views/HomeView.vue'),
   },
   {
-    path: '/Account',
-    name: 'Account',
+    path: '/account',
+    name: 'account',
     component: AccountView,
     beforeEnter: (to) => {
       if (!store.state.isAuthenticated && to.name !== 'Login') {
@@ -19,14 +22,24 @@ const routes = [
     },
   },
   {
-    path: '/Login',
-    name: 'Login',
-    component: () => import('../views/LoginView.vue'),
+    path: '/about',
+    name: 'about',
+    component: AboutView,
+  },
+  // {
+  //   path: '/login',
+  //   name: 'login',
+  //   component: LoginView,
+  // },
+  {
+    path: '/resources',
+    name: 'resources',
+    component: ResourcesView,
   },
   {
-    path: '/Register',
-    name: 'Register',
-    component: () => import('../views/RegisterView.vue'),
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/PrivacyView.vue'),
   },
 ]
 
