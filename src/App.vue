@@ -15,4 +15,8 @@ import PageFooter from './components/PageFooter.vue'
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.main-box {
+  min-height: calc(100vh - 72px);
+}
+</style>
