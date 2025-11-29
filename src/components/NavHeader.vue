@@ -6,11 +6,16 @@
           <router-link to="/" class="nav-link" active-class="active">Home</router-link>
         </li>
         <li class="nav-item">
-          <router-link to="/About" class="nav-link" active-class="active">About Us</router-link>
+          <router-link to="/about" class="nav-link" active-class="active">About Us</router-link>
+        </li>
+        <li class="nav-item">
+          <router-link to="/resources" class="nav-link" active-class="active"
+            >Resources</router-link
+          >
         </li>
         <div class="col mg-1 justify-content-end">
           <li class="nav-item">
-            <router-link to="/Account" class="nav-link" active-class="active">Account</router-link>
+            <router-link to="/account" class="nav-link" active-class="active">Account</router-link>
           </li>
         </div>
       </ul>

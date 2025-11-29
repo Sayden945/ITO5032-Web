@@ -11,11 +11,11 @@
                 <li>
                   <router-link to="/" class="text-light text-decoration-none">Home</router-link>
                 </li>
-                <li>
+                <!-- <li>
                   <router-link to="/about" class="text-light text-decoration-none"
                     >About</router-link
                   >
-                </li>
+                </li> -->
               </ul>
             </div>
             <!-- <div class="col-6">

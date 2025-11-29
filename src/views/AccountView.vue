@@ -1,8 +1,30 @@
 <template>
-  <div class="container py-5"></div>
+  <div class="container py-5">
+    <h1>Account:</h1>
+    <button class="btn btn-primary" @click="handleSignOut">Sign Out</button>
+  </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { getAuth, signOut } from 'firebase/auth'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/userStore'
+
+const userStore = useUserStore()
+const router = useRouter()
+const auth = getAuth()
+
+const handleSignOut = async () => {
+  try {
+    await signOut(auth)
+    console.log('User signed out successfully')
+    userStore.logout()
+    router.push({ name: 'home' })
+  } catch (error) {
+    console.error('Error signing out:', error)
+  }
+}
+</script>
 
 <style scoped>
 .card {
