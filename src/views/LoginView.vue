@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  validatePassword,
+  browserSessionPersistence,
+  setPersistence,
 } from 'firebase/auth'
 import { onMounted } from 'vue'
 import { useUserStore } from '../stores/userStore'
@@ -28,34 +29,67 @@ const validationErrors = ref({
   general: '',
 })
 
-const isValidating = ref(false)
-
 /* Handles if login or register */
-const isLogin = ref(false)
+const isLogin = ref(true)
+
+// Client-side password validation (more reliable than Firebase validatePassword)
+const validatePasswordClient = (password) => {
+  const minLength = 8
+  const hasUpperCase = /[A-Z]/.test(password)
+  const hasLowerCase = /[a-z]/.test(password)
+  const hasNumbers = /\d/.test(password)
+  const hasNonalphas = /\W/.test(password)
+
+  if (password.length < minLength) {
+    return { isValid: false, errorMessage: 'Password must be at least 8 characters long' }
+  }
+  if (!hasUpperCase) {
+    return { isValid: false, errorMessage: 'Password must contain at least one uppercase letter' }
+  }
+  if (!hasLowerCase) {
+    return { isValid: false, errorMessage: 'Password must contain at least one lowercase letter' }
+  }
+  if (!hasNumbers) {
+    return { isValid: false, errorMessage: 'Password must contain at least one number' }
+  }
+  if (!hasNonalphas) {
+    return { isValid: false, errorMessage: 'Password must contain at least one special character' }
+  }
+
+  return { isValid: true, errorMessage: '' }
+}
 
 // Real-time password validation
-const validatePasswordRealTime = async () => {
+const validatePasswordRealTime = () => {
   if (!formData.value.userPassword || isLogin.value) {
     validationErrors.value.password = ''
     return
   }
 
-  try {
-    isValidating.value = true
-    const passwordValidation = await validatePassword(auth, formData.value.userPassword)
+  // Use client-side validation instead of Firebase validatePassword
+  const validation = validatePasswordClient(formData.value.userPassword)
 
-    if (!passwordValidation.isValid) {
-      validationErrors.value.password =
-        passwordValidation.errorMessage || 'Password does not meet requirements'
-    } else {
-      validationErrors.value.password = ''
-    }
-  } catch (error) {
-    validationErrors.value.password = 'Password validation error: ' + error.message
-  } finally {
-    isValidating.value = false
+  if (!validation.isValid) {
+    validationErrors.value.password = validation.errorMessage
+  } else {
+    validationErrors.value.password = ''
   }
 }
+
+// Add computed property to check if form is valid
+const isFormValid = computed(() => {
+  if (isLogin.value) {
+    return formData.value.userEmail && formData.value.userPassword
+  }
+
+  // For registration, check all validations
+  return (
+    formData.value.userEmail &&
+    formData.value.userPassword &&
+    !validationErrors.value.password &&
+    !validationErrors.value.email
+  )
+})
 
 const handleSubmit = async (event) => {
   // Clear previous errors
@@ -66,18 +100,12 @@ const handleSubmit = async (event) => {
   } else {
     // Validate password before registration
     const password = event.target.password.value
+    const validation = validatePasswordClient(password)
 
-    try {
-      const passwordValidation = await validatePassword(auth, password)
-
-      if (passwordValidation.isValid) {
-        firebaseRegisterUser(event)
-      } else {
-        validationErrors.value.password =
-          passwordValidation.errorMessage || 'Password validation failed'
-      }
-    } catch (error) {
-      validationErrors.value.password = 'Password validation error: ' + error.message
+    if (validation.isValid) {
+      firebaseRegisterUser(event)
+    } else {
+      validationErrors.value.password = validation.errorMessage
     }
   }
 }
@@ -93,6 +121,15 @@ const toggleLoginRegister = () => {
 const firebaseLoginUser = (event) => {
   formData.value.userEmail = event.target.email.value
   formData.value.userPassword = event.target.password.value
+
+  // Set browser session persistence if "Remember Me" is checked
+  if (event.target.rememberMe && event.target.rememberMe.checked) {
+    setPersistence(auth, browserSessionPersistence).catch((error) => {
+      console.error('Error setting persistence:', error)
+    })
+  }
+
+  // Sign in user
   signInWithEmailAndPassword(auth, formData.value.userEmail, formData.value.userPassword)
     .then((userCredential) => {
       const user = userCredential.user
@@ -112,15 +149,19 @@ const firebaseLoginUser = (event) => {
         validationErrors.value.password = 'Incorrect password'
       } else if (errorCode === 'auth/invalid-email') {
         validationErrors.value.email = 'Invalid email address'
+      } else if (errorCode === 'auth/invalid-credential') {
+        validationErrors.value.general = 'Invalid email or password'
       } else {
         validationErrors.value.general = errorMessage
       }
     })
 }
 
+// Register new user
 const firebaseRegisterUser = (event) => {
   formData.value.userEmail = event.target.email.value
   formData.value.userPassword = event.target.password.value
+
   createUserWithEmailAndPassword(auth, formData.value.userEmail, formData.value.userPassword)
     .then((userCredential) => {
       const user = userCredential.user
@@ -133,13 +174,13 @@ const firebaseRegisterUser = (event) => {
       const errorMessage = error.message
       console.error('Registration error:', errorCode, errorMessage)
 
-      // Set specific error messages based on error code
+      // Set specific error messages based on code
       if (errorCode === 'auth/email-already-in-use') {
         validationErrors.value.email = 'An account with this email already exists'
       } else if (errorCode === 'auth/invalid-email') {
         validationErrors.value.email = 'Invalid email address'
       } else if (errorCode === 'auth/weak-password') {
-        validationErrors.value.password = 'Password is too weak'
+        validationErrors.value.password = 'Password is too weak. Must be at least 6 characters.'
       } else {
         validationErrors.value.general = errorMessage
       }
@@ -166,25 +207,25 @@ onMounted(() => {
       </div>
 
       <form @submit.prevent="handleSubmit">
-        <!-- ...existing firstName/lastName fields... -->
+        <!-- Name fields for registration -->
         <div class="row mb-3" v-if="!isLogin">
-          <div class="col m-6">
+          <div class="col-6">
             <label for="firstName" class="form-label">First Name</label>
             <input
               type="text"
               class="form-control"
               id="firstName"
-              aria-describedby="nameHelp"
+              v-model="formData.userFirstName"
               required
             />
           </div>
-          <div class="col m-6">
+          <div class="col-6">
             <label for="lastName" class="form-label">Last Name</label>
             <input
               type="text"
               class="form-control"
               id="lastName"
-              aria-describedby="nameHelp"
+              v-model="formData.userLastName"
               required
             />
           </div>
@@ -199,7 +240,6 @@ onMounted(() => {
             :class="{ 'is-invalid': validationErrors.email }"
             id="email"
             v-model="formData.userEmail"
-            aria-describedby="emailHelp"
             required
           />
           <div v-if="validationErrors.email" class="invalid-feedback">
@@ -222,28 +262,25 @@ onMounted(() => {
           <div v-if="validationErrors.password" class="invalid-feedback">
             {{ validationErrors.password }}
           </div>
-          <div v-if="!isLogin && isValidating" class="form-text">
-            <span
-              class="spinner-border spinner-border-sm me-2"
-              role="status"
-              aria-hidden="true"
-            ></span>
-            Validating password...
+
+          <!-- Password requirements hint for registration -->
+          <div v-if="!isLogin && !validationErrors.password" class="form-text">
+            Password must be at least 8 characters with uppercase, lowercase, number, and special
+            character.
           </div>
         </div>
 
-        <!-- checkbox and submit button -->
+        <!-- Remember Me checkbox for login -->
         <div class="mb-3 form-check text-start" v-if="isLogin">
           <input type="checkbox" class="form-check-input" id="rememberMe" />
           <label class="form-check-label" for="rememberMe">Remember me</label>
         </div>
-        <button type="submit" class="btn btn-primary w-100" v-if="isLogin">Sign In</button>
-        <button
-          type="submit"
-          class="btn btn-primary w-100"
-          :disabled="validationErrors.password && !isLogin"
-          v-else
-        >
+
+        <!-- Submit buttons -->
+        <button type="submit" class="btn btn-primary w-100" :disabled="!isFormValid" v-if="isLogin">
+          Sign In
+        </button>
+        <button type="submit" class="btn btn-primary w-100" :disabled="!isFormValid" v-else>
           Register
         </button>
       </form>
@@ -265,11 +302,14 @@ onMounted(() => {
   max-width: 360px;
   margin: auto;
   padding: 15px;
-  border: 1px solid #e3e3e3;
+  padding: 15px;
+  border: 1px solid 1px solid #e3e3e3;
+  border-radius: 10px;
   border-radius: 10px;
   background-color: #ffffff;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
+
 .login-container {
   min-height: calc(100vh - 150px);
   height: 100%;
