@@ -316,8 +316,22 @@ async function sendEmail({ to, subject, html, apiKey, fromEmail }) {
     await sgMail.send(msg)
     logger.info('Email sent', { to, subject })
   } catch (error) {
-    logger.error('Email send error', { to, subject, error: error.message })
-    throw error
+    logger.error('Email send error', {
+      to,
+      subject,
+      error: error.message,
+      code: error.code,
+      response: error.response?.body,
+    })
+    // Provide more specific error messages
+    if (error.code === 401 || error.code === 403) {
+      throw new Error('SendGrid authentication failed. Please check API key.')
+    } else if (error.code === 400) {
+      throw new Error(
+        'Invalid email configuration. Please verify sender email is verified in SendGrid.',
+      )
+    }
+    throw new Error(`Email delivery failed: ${error.message}`)
   }
 }
 
@@ -551,11 +565,15 @@ exports.sendBookingSummary = onCall(
         bookingsCount: bookings.length,
       }
     } catch (error) {
-      logger.error('Send booking summary error', { userId, error: error.message })
+      logger.error('Send booking summary error', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+      })
       if (error instanceof HttpsError) {
         throw error
       }
-      throw new HttpsError('internal', 'Failed to send booking summary')
+      throw new HttpsError('internal', `Failed to send booking summary: ${error.message}`)
     }
   },
 )
@@ -677,11 +695,15 @@ exports.sendDonationSummary = onCall(
         totalDonated,
       }
     } catch (error) {
-      logger.error('Send donation summary error', { userId, error: error.message })
+      logger.error('Send donation summary error', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+      })
       if (error instanceof HttpsError) {
         throw error
       }
-      throw new HttpsError('internal', 'Failed to send donation summary')
+      throw new HttpsError('internal', `Failed to send donation summary: ${error.message}`)
     }
   },
 )
@@ -801,11 +823,15 @@ exports.sendUpcomingEvents = onCall(
         eventsCount: upcomingBookings.length,
       }
     } catch (error) {
-      logger.error('Send upcoming events error', { userId, error: error.message })
+      logger.error('Send upcoming events error', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+      })
       if (error instanceof HttpsError) {
         throw error
       }
-      throw new HttpsError('internal', 'Failed to send upcoming events')
+      throw new HttpsError('internal', `Failed to send upcoming events: ${error.message}`)
     }
   },
 )
